@@ -1,0 +1,14 @@
+# Build outputs
+/target
+
+# Editors & tooling
+.vscode/
+.idea/
+.DS_Store
+*.log
+
+# Environment files
+.env*
+
+# MdBook build dir
+/docs/build
