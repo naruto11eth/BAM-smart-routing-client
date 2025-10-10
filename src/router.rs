@@ -236,6 +236,35 @@ impl BamSmartRouter {
             ProbeMethod::GetLatestBlockhash => client.get_latest_blockhash().await.map(|_| ()),
         }
     }
+
+    /// this is helper when we pick json-rpc probe, and constructs a solana async rpc client pointing at that region's endpoint
+    fn build_client(&self, region: &BamRegion) -> RpcClient {
+        RpcClient::new_with_timeout_and_commitment(
+            region.endpoint.to_string(),
+            self.config.rpc_timeout,
+            self.config.commitment.clone(),
+        )
+    }
+    /// used whenever we send the actual txns
+    fn build_submission_client(&self, region: &BamRegion) -> Result<RpcClient, RouterError> {
+        match &self.config.submission_endpoint {
+            SubmissionEndpoint::FastestRegion => Ok(RpcClient::new_with_timeout_and_commitment(
+                region.endpoint.to_string(),
+                self.config.rpc_timeout,
+                self.config.commitment.clone(),
+            )),
+            SubmissionEndpoint::Fixed(endpoint) => Ok(RpcClient::new_with_timeout_and_commitment(
+                endpoint.clone(),
+                self.config.rpc_timeout,
+                self.config.commitment.clone(),
+            )),
+            SubmissionEndpoint::Tpu { host, port } => {
+                Err(RouterError::UnsupportedSubmissionEndpoint {
+                    description: format!("TPU submission to {host}:{port}"),
+                })
+            }
+        }
+    }
 }
 
 // need a struct to store result of selecting a region for rounting, that's why added RouteSelection above
