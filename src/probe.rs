@@ -30,6 +30,7 @@ pub enum ProbeStatus {
     Healthy { latency: Duration },
     Timeout { timeout: Duration },
     RpcError { error: ClientError },
+    OtherError { reason: String },
 }
 
 impl fmt::Display for ProbeStatus {
@@ -41,9 +42,8 @@ impl fmt::Display for ProbeStatus {
             ProbeStatus::Timeout { timeout } => {
                 write!(f, "timeout after {} ms", timeout.as_millis())
             }
-            ProbeStatus::RpcError { error } => {
-                write!(f, "rpc error: {}", error)
-            }
+            ProbeStatus::RpcError { error } => write!(f, "rpc error: {}", error),
+            ProbeStatus::OtherError { reason } => write!(f, "error: {}", reason),
         }
     }
 }

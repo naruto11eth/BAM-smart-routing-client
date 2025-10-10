@@ -20,6 +20,9 @@ pub enum RouterError {
         reason: String,
     },
     Deserialization(String),
+    UnsupportedSubmissionEndpoint {
+        description: String,
+    },
 }
 
 impl std::error::Error for RouterError {
@@ -55,6 +58,9 @@ impl fmt::Display for RouterError {
             }
             RouterError::Deserialization(reason) => {
                 write!(f, "failed to deserialize transaction bytes: {reason}")
+            }
+            RouterError::UnsupportedSubmissionEndpoint { description } => {
+                write!(f, "submission strategy not yet implemented: {description}")
             }
         }
     }

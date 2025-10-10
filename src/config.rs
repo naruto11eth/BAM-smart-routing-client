@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use solana_sdk::commitment_config::CommitmentConfig;
+use solana_commitment_config::CommitmentConfig;
 
 use crate::regions::{BamNetwork, BamRegion, all_regions, regions_for_network};
 

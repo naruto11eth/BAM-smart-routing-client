@@ -317,6 +317,7 @@ impl BamSmartRouter {
             ClientErrorKind::SigningError(_) => false,
             ClientErrorKind::TransactionError(_) => false,
             ClientErrorKind::Custom(_) => false,
+            ClientErrorKind::Middleware(_) => false,
         }
     }
 }
