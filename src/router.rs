@@ -373,3 +373,89 @@ fn decode_transaction_bytes(bytes: &[u8]) -> Result<VersionedTransaction, Router
         },
     }
 }
+
+/// added some tests (not a big fond of these)
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        config::{NetworkFilter, RouterConfig},
+        regions::BamNetwork,
+    };
+
+    #[test]
+    fn decode_base64_roundtrip() {
+        let tx = VersionedTransaction::from(Transaction::default());
+        let bytes = bincode::serialize(&tx).unwrap();
+        let encoded = BASE64_STANDARD.encode(&bytes);
+        let decoded = decode_base64_transaction(&encoded).unwrap();
+        assert_eq!(tx.signatures, decoded.signatures);
+    }
+
+    #[test]
+    fn decode_base58_roundtrip() {
+        let tx = VersionedTransaction::from(Transaction::default());
+        let bytes = bincode::serialize(&tx).unwrap();
+        let encoded = bs58::encode(&bytes).into_string();
+        let decoded = decode_base58_transaction(&encoded).unwrap();
+        assert_eq!(tx.signatures, decoded.signatures);
+    }
+
+    #[tokio::test]
+    async fn select_fastest_prefers_low_latency() {
+        let server_fast = httpmock::MockServer::start_async().await;
+        let server_slow = httpmock::MockServer::start_async().await;
+
+        server_fast
+            .mock_async(|when, then| {
+                when.path("/");
+                then.status(200)
+                    .header("content-type", "application/json")
+                    .body("{\"jsonrpc\":\"2.0\",\"result\":\"ok\",\"id\":1}");
+            })
+            .await;
+
+        server_slow
+            .mock_async(|when, then| {
+                when.path("/");
+                then.delay(std::time::Duration::from_millis(200))
+                    .status(200)
+                    .header("content-type", "application/json")
+                    .body("{\"jsonrpc\":\"2.0\",\"result\":\"ok\",\"id\":1}");
+            })
+            .await;
+
+        let fast_region = leak_region("fast", "fast", &server_fast.base_url(), BamNetwork::Testnet);
+        let slow_region = leak_region("slow", "slow", &server_slow.base_url(), BamNetwork::Testnet);
+
+        let mut config = RouterConfig::default();
+        config.network_filter = NetworkFilter::Testnet;
+        config.probe_method = ProbeMethod::GetHealth;
+        config.probe_timeout = Duration::from_secs(1);
+        config.rpc_timeout = Duration::from_secs(1);
+
+        let router = BamSmartRouter::with_regions(config, vec![fast_region, slow_region]).unwrap();
+        let selection = router.select_fastest().await.unwrap();
+
+        assert_eq!(selection.region.code, fast_region.code);
+    }
+
+    fn leak_region(
+        code: &str,
+        name: &str,
+        endpoint: &str,
+        network: BamNetwork,
+    ) -> &'static BamRegion {
+        let leaked_code: &'static str = Box::leak(code.to_owned().into_boxed_str());
+        let leaked_name: &'static str = Box::leak(name.to_owned().into_boxed_str());
+        let leaked_endpoint: &'static str = Box::leak(endpoint.to_owned().into_boxed_str());
+        let region = BamRegion {
+            code: leaked_code,
+            name: leaked_name,
+            endpoint: leaked_endpoint,
+            network,
+            metadata: crate::regions::RegionMetadata::default(),
+        };
+        Box::leak(Box::new(region))
+    }
+}
