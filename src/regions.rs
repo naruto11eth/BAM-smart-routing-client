@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
 
-/// Identifies the Solana network a BAM region belongs to.
+/// Identifies the Solana network a BAM region belongs to
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum BamNetwork {
     /// Solana mainnet-beta.
@@ -9,7 +9,7 @@ pub enum BamNetwork {
     Testnet,
 }
 
-/// Supplemental metadata for a region used in documentation or UIs.
+/// Supplemental metadata for a region used in documentation or UIs
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct RegionMetadata {
     pub city: Option<&'static str>,
@@ -18,7 +18,7 @@ pub struct RegionMetadata {
     pub notes: Option<&'static str>,
 }
 
-/// A BAM RPC region description.
+/// A BAM RPC region description
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BamRegion {
     pub code: &'static str,
@@ -113,12 +113,12 @@ static ALL_REGIONS: Lazy<Vec<BamRegion>> = Lazy::new(|| {
     regions
 });
 
-/// Returns every known BAM region.
+/// Returns every known BAM region
 pub fn all_regions() -> &'static [BamRegion] {
     ALL_REGIONS.as_slice()
 }
 
-/// Returns the regions that belong to the selected network.
+/// Returns the regions that belong to the selected network
 pub fn regions_for_network(network: BamNetwork) -> &'static [BamRegion] {
     match network {
         BamNetwork::Mainnet => BAM_MAINNET_REGIONS,
