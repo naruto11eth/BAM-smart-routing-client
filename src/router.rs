@@ -95,6 +95,30 @@ impl BamSmartRouter {
         }
     }
 
+    /// Submit any serializable Solana transaction, routing it to the fastest region
+    /// need to have a txnSend result as well just how we had for route selection
+    /// added send_txn_to_region as well
+    pub async fn submit_serializable_transaction<T>(
+        &self,
+        transaction: &T,
+    ) -> Result<TransactionSendOutcome, RouterError>
+    where
+        T: SerializableTransaction + Sync,
+    {
+        let selection = self.select_fastest().await?;
+        let (signature, attempts) = self
+            .send_transaction_to_region(transaction, selection.region)
+            .await?;
+
+        Ok(TransactionSendOutcome {
+            signature,
+            region: selection.region,
+            latency: selection.latency,
+            probes: selection.probes,
+            attempts,
+        })
+    }
+
     async fn probe_single_region(&self, region: &'static BamRegion) -> ProbeRecord {}
 }
 
