@@ -265,6 +265,21 @@ impl BamSmartRouter {
             }
         }
     }
+
+    // if user gets any error
+    fn should_retry(error: &ClientError) -> bool {
+        match error.kind() {
+            ClientErrorKind::Reqwest(reqwest_error) => {
+                reqwest_error.is_timeout() || reqwest_error.is_connect()
+            }
+            ClientErrorKind::Io(_) => true,
+            ClientErrorKind::RpcError(_) => false,
+            ClientErrorKind::SerdeJson(_) => false,
+            ClientErrorKind::SigningError(_) => false,
+            ClientErrorKind::TransactionError(_) => false,
+            ClientErrorKind::Custom(_) => false,
+        }
+    }
 }
 
 // need a struct to store result of selecting a region for rounting, that's why added RouteSelection above
