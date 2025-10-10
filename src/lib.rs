@@ -11,7 +11,7 @@ mod probe;
 mod regions;
 mod router;
 
-pub use crate::config::{NetworkFilter, ProbeMethod, RouterConfig};
+pub use crate::config::{NetworkFilter, ProbeMethod, RouterConfig, SubmissionEndpoint};
 pub use crate::error::RouterError;
 pub use crate::probe::{ProbeRecord, ProbeStatus};
 pub use crate::regions::{
