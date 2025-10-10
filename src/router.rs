@@ -37,4 +37,25 @@ impl BamSmartRouter {
         }
         Ok(Self { config, regions })
     }
+
+    /// Create a router with custom regions if we ever get something, this is not required tbh
+    pub fn with_regions(
+        config: RouterConfig,
+        regions: Vec<&'static BamRegion>,
+    ) -> Result<Self, RouterError> {
+        if regions.is_empty() {
+            return Err(RouterError::NoRegions(config.network_filter));
+        }
+        Ok(Self { config, regions })
+    }
+
+    /// Returns the configuration in use
+    pub fn config(&self) -> &RouterConfig {
+        &self.config
+    }
+
+    /// Returns the regions the router will consider
+    pub fn regions(&self) -> &[&'static BamRegion] {
+        &self.regions
+    }
 }
