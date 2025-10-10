@@ -188,6 +188,54 @@ impl BamSmartRouter {
             }
         }
     }
+
+    /// this is the main/default probe fn that should be invoked. we are doing a simple tcp connect, something as simple as curl command
+    async fn probe_tcp_connect(&self, region: &'static BamRegion) -> ProbeRecord {
+        let status = match Url::parse(region.endpoint) {
+            Ok(url) => {
+                if let (Some(host), Some(port)) = (url.host_str(), url.port_or_known_default()) {
+                    let address = format!("{}:{}", host, port);
+                    let start = Instant::now();
+                    match timeout(self.config.probe_timeout, TcpStream::connect(address)).await {
+                        Ok(Ok(stream)) => {
+                            drop(stream);
+                            ProbeStatus::Healthy {
+                                latency: start.elapsed(),
+                            }
+                        }
+                        Ok(Err(err)) => ProbeStatus::OtherError {
+                            reason: err.to_string(),
+                        },
+                        Err(_) => ProbeStatus::Timeout {
+                            timeout: self.config.probe_timeout,
+                        },
+                    }
+                } else {
+                    ProbeStatus::OtherError {
+                        reason: "missing host or port".to_string(),
+                    }
+                }
+            }
+            Err(err) => ProbeStatus::OtherError {
+                reason: err.to_string(),
+            },
+        };
+
+        ProbeRecord { region, status }
+    }
+
+    async fn execute_probe(
+        &self,
+        client: &RpcClient,
+        method: ProbeMethod,
+    ) -> Result<(), ClientError> {
+        match method {
+            ProbeMethod::TcpConnect => unreachable!("TCP connect probing handled separately"),
+            ProbeMethod::GetHealth => client.get_health().await,
+            ProbeMethod::GetSlot => client.get_slot().await.map(|_| ()),
+            ProbeMethod::GetLatestBlockhash => client.get_latest_blockhash().await.map(|_| ()),
+        }
+    }
 }
 
 // need a struct to store result of selecting a region for rounting, that's why added RouteSelection above
