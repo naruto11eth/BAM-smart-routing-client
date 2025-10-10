@@ -58,4 +58,50 @@ impl BamSmartRouter {
     pub fn regions(&self) -> &[&'static BamRegion] {
         &self.regions
     }
+
+    // Executes the configured latency probe against every region in parallel -- the join_all is used to run them in parallel
+    // this iwll return a vector of ProbeRecord
+    pub async fn probe_regions(&self) -> Vec<ProbeRecord> {
+        let futures = self
+            .regions
+            .iter()
+            .map(|region| self.probe_single_region(*region));
+        join_all(futures).await
+    }
+
+    /// Selects the fastest healthy region based on the configured probe
+    pub async fn select_fastest(&self) -> Result<RouteSelection, RouterError> {
+        let probes = self.probe_regions().await;
+        let mut best: Option<(usize, Duration)> = None;
+
+        for (idx, record) in probes.iter().enumerate() {
+            if let ProbeStatus::Healthy { latency } = record.status {
+                if best
+                    .map(|(_, best_latency)| latency < best_latency)
+                    .unwrap_or(true)
+                {
+                    best = Some((idx, latency));
+                }
+            }
+        }
+
+        match best {
+            Some((idx, latency)) => Ok(RouteSelection {
+                region: probes[idx].region,
+                latency,
+                probes,
+            }),
+            None => Err(RouterError::NoHealthyRegion { probes }),
+        }
+    }
+
+    async fn probe_single_region(&self, region: &'static BamRegion) -> ProbeRecord {}
+}
+
+// need a struct to store result of selecting a region for rounting, that's why added RouteSelection above
+#[derive(Debug)]
+pub struct RouteSelection {
+    pub region: &'static BamRegion,
+    pub latency: Duration,
+    pub probes: Vec<ProbeRecord>,
 }
