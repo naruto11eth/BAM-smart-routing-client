@@ -1,0 +1,14 @@
+[book]
+author = "naruto11"
+title = "BAM Smart Routing Client"
+description = "Latency-aware Solana RPC routing client for BAM regions"
+multilingual = false
+src = "src"
+
+[build]
+build-dir = "build"
+create-missing = false
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
