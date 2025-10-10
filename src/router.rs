@@ -338,3 +338,38 @@ pub struct TransactionSendOutcome {
     pub probes: Vec<ProbeRecord>,
     pub attempts: usize,
 }
+
+/// this will let router accept txns in other formats -- decodes base64
+fn decode_base64_transaction(encoded: &str) -> Result<VersionedTransaction, RouterError> {
+    let cleaned = encoded.trim();
+    let bytes = BASE64_STANDARD
+        .decode(cleaned)
+        .map_err(|err| RouterError::InvalidEncoding {
+            encoding: "base64",
+            reason: err.to_string(),
+        })?;
+    decode_transaction_bytes(&bytes)
+}
+
+fn decode_base58_transaction(encoded: &str) -> Result<VersionedTransaction, RouterError> {
+    let cleaned = encoded.trim();
+    let bytes = bs58::decode(cleaned)
+        .into_vec()
+        .map_err(|err| RouterError::InvalidEncoding {
+            encoding: "base58",
+            reason: err.to_string(),
+        })?;
+    decode_transaction_bytes(&bytes)
+}
+
+fn decode_transaction_bytes(bytes: &[u8]) -> Result<VersionedTransaction, RouterError> {
+    match bincode::deserialize::<VersionedTransaction>(bytes) {
+        Ok(tx) => Ok(tx),
+        Err(versioned_err) => match bincode::deserialize::<Transaction>(bytes) {
+            Ok(legacy) => Ok(VersionedTransaction::from(legacy)),
+            Err(legacy_err) => Err(RouterError::Deserialization(format!(
+                "versioned error: {versioned_err}; legacy error: {legacy_err}"
+            ))),
+        },
+    }
+}
