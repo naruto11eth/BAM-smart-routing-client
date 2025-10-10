@@ -162,7 +162,32 @@ impl BamSmartRouter {
         self.submit_versioned_transaction(&tx).await
     }
 
-    async fn probe_single_region(&self, region: &'static BamRegion) -> ProbeRecord {}
+    async fn probe_single_region(&self, region: &'static BamRegion) -> ProbeRecord {
+        match self.config.probe_method {
+            ProbeMethod::TcpConnect => self.probe_tcp_connect(region).await,
+            method => {
+                let client = self.build_client(region);
+                let start = Instant::now();
+                let outcome = timeout(
+                    self.config.probe_timeout,
+                    self.execute_probe(&client, method),
+                )
+                .await;
+
+                let status = match outcome {
+                    Ok(Ok(())) => ProbeStatus::Healthy {
+                        latency: start.elapsed(),
+                    },
+                    Ok(Err(err)) => ProbeStatus::RpcError { error: err },
+                    Err(_) => ProbeStatus::Timeout {
+                        timeout: self.config.probe_timeout,
+                    },
+                };
+
+                ProbeRecord { region, status }
+            }
+        }
+    }
 }
 
 // need a struct to store result of selecting a region for rounting, that's why added RouteSelection above
