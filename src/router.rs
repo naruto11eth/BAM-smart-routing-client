@@ -245,7 +245,7 @@ impl BamSmartRouter {
             self.config.commitment.clone(),
         )
     }
-    /// used whenever we send the actual txns
+    /// used whenever we send the actual txns but it looks at config.submission_endpoints. ot chooses where to submit.
     fn build_submission_client(&self, region: &BamRegion) -> Result<RpcClient, RouterError> {
         match &self.config.submission_endpoint {
             SubmissionEndpoint::FastestRegion => Ok(RpcClient::new_with_timeout_and_commitment(
@@ -264,6 +264,45 @@ impl BamSmartRouter {
                 })
             }
         }
+    }
+
+    /// actually what sends the signed txns. it will call build_submission_client to get teh right client first and then send_transaction(). it sends during and chooses logic.
+    async fn send_transaction_to_region<T>(
+        &self,
+        transaction: &T,
+        region: &'static BamRegion,
+    ) -> Result<(Signature, usize), RouterError>
+    where
+        T: SerializableTransaction + Sync,
+    {
+        let client = self.build_submission_client(region)?;
+        let attempts = self.config.retries.saturating_add(1);
+        let mut last_error: Option<ClientError> = None;
+
+        for attempt in 1..=attempts {
+            match client.send_transaction(transaction).await {
+                Ok(signature) => return Ok((signature, attempt)),
+                Err(err) => {
+                    if !Self::should_retry(&err) || attempt == attempts {
+                        return Err(RouterError::TransactionFailed {
+                            region_code: region.code,
+                            source: err,
+                        });
+                    }
+                    last_error = Some(err);
+                }
+            }
+        }
+
+        let error = last_error.unwrap_or_else(|| {
+            ClientError::from(ClientErrorKind::Custom(
+                "transaction failed without specific error".to_string(),
+            ))
+        });
+        Err(RouterError::TransactionFailed {
+            region_code: region.code,
+            source: error,
+        })
     }
 
     // if user gets any error
