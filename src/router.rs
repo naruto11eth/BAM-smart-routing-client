@@ -119,6 +119,49 @@ impl BamSmartRouter {
         })
     }
 
+    /// Convenience wrapper for `VersionedTransaction` objects
+    pub async fn submit_versioned_transaction(
+        &self,
+        transaction: &VersionedTransaction,
+    ) -> Result<TransactionSendOutcome, RouterError> {
+        self.submit_serializable_transaction(transaction).await
+    }
+
+    /// Convenience wrapper for legacy `Transaction` objects
+    pub async fn submit_legacy_transaction(
+        &self,
+        transaction: &Transaction,
+    ) -> Result<TransactionSendOutcome, RouterError> {
+        self.submit_serializable_transaction(transaction).await
+    }
+
+    /// Decode a base64-encoded transaction and submit it
+    pub async fn submit_transaction_base64(
+        &self,
+        base64_tx: &str,
+    ) -> Result<TransactionSendOutcome, RouterError> {
+        let tx = decode_base64_transaction(base64_tx)?; // need to write the decode_base fn
+        self.submit_versioned_transaction(&tx).await
+    }
+
+    /// Decode a base58-encoded transaction and submit it
+    pub async fn submit_transaction_base58(
+        &self,
+        base58_tx: &str,
+    ) -> Result<TransactionSendOutcome, RouterError> {
+        let tx = decode_base58_transaction(base58_tx)?;
+        self.submit_versioned_transaction(&tx).await
+    }
+
+    /// Submit raw bincode-serialized transaction bytes
+    pub async fn submit_transaction_bytes(
+        &self,
+        bytes: &[u8],
+    ) -> Result<TransactionSendOutcome, RouterError> {
+        let tx = decode_transaction_bytes(bytes)?;
+        self.submit_versioned_transaction(&tx).await
+    }
+
     async fn probe_single_region(&self, region: &'static BamRegion) -> ProbeRecord {}
 }
 
@@ -128,4 +171,14 @@ pub struct RouteSelection {
     pub region: &'static BamRegion,
     pub latency: Duration,
     pub probes: Vec<ProbeRecord>,
+}
+
+/// Response returned after submitting a transaction
+#[derive(Debug)]
+pub struct TransactionSendOutcome {
+    pub signature: Signature,
+    pub region: &'static BamRegion,
+    pub latency: Duration,
+    pub probes: Vec<ProbeRecord>,
+    pub attempts: usize,
 }
