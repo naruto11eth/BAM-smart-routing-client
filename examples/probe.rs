@@ -1,6 +1,8 @@
 /// quick example for probing
 /// run with --> cargo run --example probe
-use bam_smart_routing_client::{BamSmartRouter, ProbeMethod, RouterConfig};
+use bam_smart_routing_client::{
+    BamSmartRouter, ProbeMethod, ProbeRecord, RouterConfig, RouterError,
+};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -13,13 +15,62 @@ async fn main() -> anyhow::Result<()> {
     config.retries = 1;
 
     let router = BamSmartRouter::new(config)?;
-    let probes = router.probe_regions().await;
+    let tx_b64 = parse_tx_flag();
 
-    let mut rows = Vec::new();
+    let selection = match router.select_fastest().await {
+        Ok(selection) => selection,
+        Err(RouterError::NoHealthyRegion { probes }) => {
+            print_table(&probes);
+            println!("\nNo healthy regions available");
+            return Ok(());
+        }
+        Err(err) => {
+            eprintln!("Failed to probe regions: {err}");
+            return Ok(());
+        }
+    };
+
+    print_table(&selection.probes);
+    println!();
+    println!(
+        "Fastest region: {} ({} ms)",
+        selection.region.endpoint,
+        selection.latency.as_millis()
+    );
+
+    if let Some(tx_b64) = tx_b64 {
+        match router
+            .submit_transaction_base64_with_selection(&tx_b64, selection)
+            .await
+        {
+            Ok(outcome) => {
+                println!(
+                    "Submitted tx {} via {} in {} ms (attempts: {})",
+                    outcome.signature,
+                    outcome.region.endpoint,
+                    outcome.latency.as_millis(),
+                    outcome.attempts
+                );
+            }
+            Err(err) => {
+                eprintln!(
+                    "Failed to submit transaction (strategy: {:?}): {}",
+                    router.config().submission_endpoint,
+                    err
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn print_table(probes: &[ProbeRecord]) {
+    let mut rows = Vec::with_capacity(probes.len());
     let mut code_width = "Region".len();
     let mut endpoint_width = "Endpoint".len();
 
-    for record in &probes {
+    for record in probes {
         let code = record.region.code;
         let endpoint = record.region.endpoint;
         let status = format!("{}", record.status);
@@ -44,7 +95,7 @@ async fn main() -> anyhow::Result<()> {
         endpoint_w = endpoint_width
     );
 
-    for (code, endpoint, status) in &rows {
+    for (code, endpoint, status) in rows {
         println!(
             "{code:<code_w$} | {endpoint:<endpoint_w$} | {status}",
             code = code,
@@ -54,40 +105,6 @@ async fn main() -> anyhow::Result<()> {
             endpoint_w = endpoint_width
         );
     }
-
-    let tx_b64 = parse_tx_flag();
-
-    if let Ok(selection) = router.select_fastest().await {
-        println!();
-        println!(
-            "Fastest region: {} ({} ms)",
-            selection.region.endpoint,
-            selection.latency.as_millis()
-        );
-
-        if let Some(tx_b64) = tx_b64 {
-            match router.submit_transaction_base64(&tx_b64).await {
-                Ok(outcome) => {
-                    println!(
-                        "Submitted tx {} via {} in {} ms (attempts: {})",
-                        outcome.signature,
-                        outcome.region.endpoint,
-                        outcome.latency.as_millis(),
-                        outcome.attempts
-                    );
-                }
-                Err(err) => {
-                    eprintln!(
-                        "Failed to submit transaction (strategy: {:?}): {}",
-                        router.config().submission_endpoint,
-                        err
-                    );
-                }
-            }
-        }
-    }
-
-    Ok(())
 }
 
 fn parse_tx_flag() -> Option<String> {
