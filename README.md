@@ -21,7 +21,7 @@ The crate targets Rust 1.75+ and depends on `tokio` for async runtime support.
 [dependencies]
 bam-smart-routing-client = { path = "." }
 tokio = { version = "1.40", features = ["macros", "rt-multi-thread"] }
-solana-sdk = "1.18.26"
+solana-sdk = "=3.0.0"
 ```
 
 Quick probe example:
