@@ -72,3 +72,14 @@ encoding formats used by wallets and SDKs.
 cargo run --example probe
 cargo run --example probe -- --tx-base64 <BASE64_TX>
 ```
+
+### Create a base64 transaction payload
+
+```
+cargo run --example make_tx -- <RECIPIENT_PUBKEY> <AMOUNT_SOL|LAMPORTS> [KEYPAIR_PATH] [RPC_URL]
+```
+
+The helper fetches a fresh blockhash, signs the transfer with the supplied
+keypair, and prints the serialized transaction as base64 without broadcasting
+it. Pipe the final line straight into the probe example when you want to submit
+via the router.
