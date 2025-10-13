@@ -81,6 +81,25 @@ cargo run --example probe
 cargo run --example probe -- --tx-base64 <BASE64_TX>
 ```
 
+### Generate a signed transaction for testing
+
+Use the helper example to mint a fresh base64 payload without juggling CLI
+flags manually:
+
+```
+cargo run --example make_tx -- <RECIPIENT_PUBKEY> <AMOUNT_SOL|LAMPORTS> [KEYPAIR_PATH] [RPC_URL]
+
+# Example: send 0.01 SOL from a local keypair on testnet
+cargo run --example make_tx -- <RECIPIENT_PUBKEY> 0.01 ~/solana-test.json
+
+# Pipe the output into the router example
+BASE64_TX=$(cargo run --example make_tx -- <RECIPIENT_PUBKEY> 0.01 ~/solana-test.json | tail -n1)
+cargo run --example probe -- --tx-base64 "$BASE64_TX"
+```
+
+The helper fetches a fresh blockhash, signs the transfer, and prints the
+serialized transaction as base64 without broadcasting it.
+
 See the [docs](docs/src/index.md) for more examples and API details.
 
 ## Development workflow
