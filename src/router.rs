@@ -106,17 +106,8 @@ impl BamSmartRouter {
         T: SerializableTransaction + Sync,
     {
         let selection = self.select_fastest().await?;
-        let (signature, attempts) = self
-            .send_transaction_to_region(transaction, selection.region)
-            .await?;
-
-        Ok(TransactionSendOutcome {
-            signature,
-            region: selection.region,
-            latency: selection.latency,
-            probes: selection.probes,
-            attempts,
-        })
+        self.submit_serializable_transaction_with_selection(transaction, selection)
+            .await
     }
 
     /// Convenience wrapper for `VersionedTransaction` objects
@@ -127,12 +118,30 @@ impl BamSmartRouter {
         self.submit_serializable_transaction(transaction).await
     }
 
+    pub async fn submit_versioned_transaction_with_selection(
+        &self,
+        transaction: &VersionedTransaction,
+        selection: RouteSelection,
+    ) -> Result<TransactionSendOutcome, RouterError> {
+        self.submit_serializable_transaction_with_selection(transaction, selection)
+            .await
+    }
+
     /// Convenience wrapper for legacy `Transaction` objects
     pub async fn submit_legacy_transaction(
         &self,
         transaction: &Transaction,
     ) -> Result<TransactionSendOutcome, RouterError> {
         self.submit_serializable_transaction(transaction).await
+    }
+
+    pub async fn submit_legacy_transaction_with_selection(
+        &self,
+        transaction: &Transaction,
+        selection: RouteSelection,
+    ) -> Result<TransactionSendOutcome, RouterError> {
+        self.submit_serializable_transaction_with_selection(transaction, selection)
+            .await
     }
 
     /// Decode a base64-encoded transaction and submit it
@@ -144,6 +153,16 @@ impl BamSmartRouter {
         self.submit_versioned_transaction(&tx).await
     }
 
+    pub async fn submit_transaction_base64_with_selection(
+        &self,
+        base64_tx: &str,
+        selection: RouteSelection,
+    ) -> Result<TransactionSendOutcome, RouterError> {
+        let tx = decode_base64_transaction(base64_tx)?;
+        self.submit_versioned_transaction_with_selection(&tx, selection)
+            .await
+    }
+
     /// Decode a base58-encoded transaction and submit it
     pub async fn submit_transaction_base58(
         &self,
@@ -153,6 +172,16 @@ impl BamSmartRouter {
         self.submit_versioned_transaction(&tx).await
     }
 
+    pub async fn submit_transaction_base58_with_selection(
+        &self,
+        base58_tx: &str,
+        selection: RouteSelection,
+    ) -> Result<TransactionSendOutcome, RouterError> {
+        let tx = decode_base58_transaction(base58_tx)?;
+        self.submit_versioned_transaction_with_selection(&tx, selection)
+            .await
+    }
+
     /// Submit raw bincode-serialized transaction bytes
     pub async fn submit_transaction_bytes(
         &self,
@@ -160,6 +189,42 @@ impl BamSmartRouter {
     ) -> Result<TransactionSendOutcome, RouterError> {
         let tx = decode_transaction_bytes(bytes)?;
         self.submit_versioned_transaction(&tx).await
+    }
+
+    pub async fn submit_transaction_bytes_with_selection(
+        &self,
+        bytes: &[u8],
+        selection: RouteSelection,
+    ) -> Result<TransactionSendOutcome, RouterError> {
+        let tx = decode_transaction_bytes(bytes)?;
+        self.submit_versioned_transaction_with_selection(&tx, selection)
+            .await
+    }
+
+    /// this one is important new. added this so that now we dont reprobe everything and just get the result from first probe. all other fn with *_with_selection are extensions/helper
+    async fn submit_serializable_transaction_with_selection<T>(
+        &self,
+        transaction: &T,
+        selection: RouteSelection,
+    ) -> Result<TransactionSendOutcome, RouterError>
+    where
+        T: SerializableTransaction + Sync,
+    {
+        let RouteSelection {
+            region,
+            latency,
+            probes,
+        } = selection;
+
+        let (signature, attempts) = self.send_transaction_to_region(transaction, region).await?;
+
+        Ok(TransactionSendOutcome {
+            signature,
+            region,
+            latency,
+            probes,
+            attempts,
+        })
     }
 
     async fn probe_single_region(&self, region: &'static BamRegion) -> ProbeRecord {
@@ -375,7 +440,7 @@ fn decode_transaction_bytes(bytes: &[u8]) -> Result<VersionedTransaction, Router
     }
 }
 
-/// added some tests (not a big fond of these)
+/// added some tests (not a big fan of these)
 #[cfg(test)]
 mod tests {
     use super::*;
